@@ -59,7 +59,11 @@ def get_holiday_info():
 # 翌日の日付をyyyy-mm-ddの形式の文字列で取得する
 def get_tomorrow_str():
     today = datetime.datetime.now()
-    tomorrow = today - datetime.timedelta(days=1)
+    print("今日の日付")
+    print(today)
+    tomorrow = today + datetime.timedelta(days=1)
+    print("翌日の日付")
+    print(tomorrow)
     tomorrow_str = tomorrow.strftime("%Y-%m-%d")
     return tomorrow_str
 
