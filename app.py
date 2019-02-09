@@ -14,12 +14,8 @@ from dotenv import load_dotenv
 app = Flask(__name__)
 
 
-def lambda_handler(event, context):
-    hello_world()
-
-
 @app.route("/", methods=["GET"])
-def hello_world():
+def notif_holiday():
     # 祝日リストを取得する
     holiday_list = get_holiday_info()
     print("今年の祝日一覧")
@@ -105,3 +101,7 @@ def get_line_profile():
     print(profile)
     return app.response_class(status=200)
 
+
+@app.route("/test", methods=["GET"])
+def test_method():
+    return "test ok"
