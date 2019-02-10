@@ -1,3 +1,6 @@
+# Lineボットで通知するアプリケーション
+# herokuでのホスティングを前提とする
+
 from flask import Flask, request, jsonify
 import requests
 import datetime
@@ -11,81 +14,75 @@ import os
 from os.path import join, dirname
 from dotenv import load_dotenv
 
+from dateutils import *
+
 app = Flask(__name__)
 
+# Lineへのアクセス情報を取得し、定義する
+HEROKU_FLAG = os.environ.get("HEROKU_FLAG", default=False)
+if HEROKU_FLAG == False:  # heroku環境以外
+    dotenv_path = join(dirname(__file__), ".env")
+    load_dotenv(dotenv_path)
 
-@app.route("/", methods=["GET"])
-def notif_holiday():
+LINE_ACCESS_TOKEN = os.environ.get("LINE_ACCESS_TOKEN")
+SEND_USER_ID = os.environ.get("SEND_USER_ID")
+
+# APIとハンドラーを定義
+line_bot_api = LineBotApi(LINE_ACCESS_TOKEN)
+
+day_dict = {"today": "今日", "beforeday": "明日"}
+
+# 祝日の前日と当日に対応している。<today_or_beforeday>で以下のように指定する。
+# 当日： /notif_holiday/today
+# 前日： /notif_holiday/beforeday
+@app.route("/notif_holiday/<today_or_beforeday>", methods=["GET"])
+def notif_holiday(today_or_beforeday):
+    # 日付を取得する。heroku環境ではus時刻なのでus時刻を変換して取得する
+    date_str = ""
+    if today_or_beforeday == "today":
+        date_str = get_today_jp_str()
+    elif today_or_beforeday == "beforeday":
+        date_str = get_tomorrow_jp_str()
+    else:
+        raise RuntimeError("ERROR: args is invalid.")
+
     # 祝日リストを取得する
-    holiday_list = get_holiday_info()
-    print("今年の祝日一覧")
+    holiday_list = get_holiday_info(date_str)
+    print("holiday list")
     print(holiday_list)
 
-    # 祝日リストに翌日が含まれるか判定する
-    is_holiday = is_tomorrow_holiday(holiday_list)
-    print("翌日は祝日か？")
-    print(is_holiday)
+    # 祝日リストに指定日が含まれるか判定する
+    is_holiday_flag = is_holiday(holiday_list, date_str)
 
-    push_line_message()
-
-    if is_holiday:
+    if is_holiday_flag:
         # このあたりでLine-botの通知機能を記載する
-        print("翌日は祝日!")
+        holiday_name = holiday_list[date_str]
+        print(day_dict[today_or_beforeday] + "は「" + holiday_name + "」です。")
+        push_line_message(holiday_name, today_or_beforeday)
         return app.response_class(status=200)
     else:
-        print("翌日は祝日じゃない")
+        print(day_dict[today_or_beforeday] + " is not holiday")
         return app.response_class(status=200)
 
 
-# 翌日が祝日か判定する関数
-def is_tomorrow_holiday(holiday_list):
-    tomorrow = get_tomorrow_str()
-    return tomorrow in holiday_list
+# 指定した日付が祝日か判定する
+def is_holiday(holiday_list, date_str):
+    return date_str in holiday_list
 
 
-# 祝日を取得する関数
-def get_holiday_info():
-    tomorrow = get_tomorrow_str()
-    year = tomorrow[0:4]
+# 指定した日付の年の祝日を取得するメソッド
+def get_holiday_info(date_str):
+    year = date_str[0:4]
     url = "https://holidays-jp.github.io/api/v1/" + year + "/date.json"  # 取得先のURL
     holiday_list = requests.get(url)
     return holiday_list.json()
 
 
-# 翌日の日付をyyyy-mm-ddの形式の文字列で取得する
-def get_tomorrow_str():
-    today = datetime.datetime.now()
-    print("今日の日付")
-    print(today)
-    tomorrow = today + datetime.timedelta(days=1)
-    print("翌日の日付")
-    print(tomorrow)
-    tomorrow_str = tomorrow.strftime("%Y-%m-%d")
-    return tomorrow_str
-
-
-# LINEメッセージを送る
-def push_line_message():
-    dotenv_path = join(dirname(__file__), ".env")
-    load_dotenv(dotenv_path)
-    LINE_ACCESS_TOKEN = os.environ.get("LINE_ACCESS_TOKEN")
-    SEND_USER_ID = os.environ.get("SEND_USER_ID")
-
-    # url = "https://api.line.me/v2/bot/message/push"
-    # headers = {
-    #     "Content-Type": "application/json",
-    #     "Authorization": "Bearer " + LINE_ACCESS_TOKEN,
-    # }
-    # data = {"to": SEND_USER_ID, "messages": "text_message"}
-    # response = requests.post(url, data=json.dumps(data), headers=headers)
-    # print(response.status_code)
-
-    # APIとハンドラーを定義
-    line_bot_api = LineBotApi(LINE_ACCESS_TOKEN)
-
-    text_message = "テスト用メッセージ"
+# LINEメッセージを送るメソッド
+def push_line_message(holiday_name, today_or_beforeday):
+    text_message = day_dict[today_or_beforeday] + "は「" + holiday_name + "」です。"
     try:
-        line_bot_api.push_message(SEND_USER_ID, TextSendMessage(text="text_message"))
+        line_bot_api.push_message(SEND_USER_ID, TextSendMessage(text=text_message))
     except LineBotApiError as e:
         # エラーが起こり送信できなかった場合
         print(e)
@@ -93,15 +90,13 @@ def push_line_message():
 
 @app.route("/get_line_profile", methods=["GET", "POST"])
 def get_line_profile():
-    LINE_ACCESS_TOKEN = os.environ.get("LINE_ACCESS_TOKEN")
-    SEND_USER_ID = os.environ.get("SEND_USER_ID")
-
     line_bot_api = LineBotApi(LINE_ACCESS_TOKEN)
     profile = line_bot_api.get_profile(SEND_USER_ID)
     print(profile)
     return app.response_class(status=200)
 
 
+# 疎通確認用のテストAPI
 @app.route("/test", methods=["GET"])
 def test_method():
     return "test ok"
