@@ -26,8 +26,9 @@ if HEROKU_FLAG == False:
     load_dotenv(dotenv_path)
 
 LINE_ACCESS_TOKEN = os.environ.get("LINE_ACCESS_TOKEN")
-SEND_USER_ID = os.environ.get("SEND_USER_ID")
 LINE_CHANNEL_SECRET = os.environ.get("LINE_CHANNEL_SECRET")
+SEND_USER_ID = os.environ.get("SEND_USER_ID")
+SEND_USER_ID2 = os.environ.get("SEND_USER_ID2")
 
 # APIとハンドラーを定義
 line_bot_api = LineBotApi(LINE_ACCESS_TOKEN)
@@ -87,7 +88,9 @@ def get_holiday_info(date_str):
 def push_line_message(holiday_name, today_or_beforeday):
     text_message = day_dict[today_or_beforeday] + "は「" + holiday_name + "」です。"
     try:
-        line_bot_api.push_message(SEND_USER_ID, TextSendMessage(text=text_message))
+        line_bot_api.multicast(
+            [SEND_USER_ID, SEND_USER_ID2], TextSendMessage(text=text_message)
+        )
     except LineBotApiError as e:
         # エラーが起こり送信できなかった場合
         print(e)
@@ -101,6 +104,8 @@ def get_line_profile():
     return app.response_class(status=200)
 
 
+# webhookからuserIdを取得する。友達からメッセージを送ってもらうとuserIdを取得できる。
+# botアカウントへuserIdを送信する。
 @app.route("/webhook", methods=["POST"])
 def webhook():
     # get X-Line-Signature header value
