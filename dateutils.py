@@ -7,6 +7,7 @@ from datetime import timedelta
 # 現在の日本日付をyyyy-mm-ddの形式の文字列で取得する
 def get_today_jp_str():
     today = datetime.datetime.now()
+    print("now datetime is " + today)
     today_str = _get_date_str(today)
     return today_str
 
