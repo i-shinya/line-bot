@@ -28,8 +28,3 @@ def _get_date_str(date):
         date_str = date.strftime("%Y-%m-%d")
     return date_str
 
-
-# US時刻を日本時刻へ変換するメソッド
-def _convert_us_to_jp(date):
-    date
-
