@@ -20,15 +20,18 @@ app = Flask(__name__)
 
 # Lineへのアクセス情報を取得し、定義する
 HEROKU_FLAG = os.environ.get("HEROKU_FLAG", default=False)
-if HEROKU_FLAG == False:  # heroku環境以外
+# heroku環境以外では.envファイルから取得
+if HEROKU_FLAG == False:
     dotenv_path = join(dirname(__file__), ".env")
     load_dotenv(dotenv_path)
 
 LINE_ACCESS_TOKEN = os.environ.get("LINE_ACCESS_TOKEN")
 SEND_USER_ID = os.environ.get("SEND_USER_ID")
+LINE_CHANNEL_SECRET = os.environ.get("LINE_CHANNEL_SECRET")
 
 # APIとハンドラーを定義
 line_bot_api = LineBotApi(LINE_ACCESS_TOKEN)
+handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
 day_dict = {"today": "今日", "beforeday": "明日"}
 
@@ -48,7 +51,7 @@ def notif_holiday(today_or_beforeday):
 
     # 祝日リストを取得する
     holiday_list = get_holiday_info(date_str)
-    print("holiday list")
+    print("-----holiday list-----")
     print(holiday_list)
 
     # 祝日リストに指定日が含まれるか判定する
@@ -59,9 +62,11 @@ def notif_holiday(today_or_beforeday):
         holiday_name = holiday_list[date_str]
         print(day_dict[today_or_beforeday] + "は「" + holiday_name + "」です。")
         push_line_message(holiday_name, today_or_beforeday)
+        print("--------finish--------")
         return app.response_class(status=200)
     else:
-        print(day_dict[today_or_beforeday] + " is not holiday")
+        print(today_or_beforeday + " is not holiday")
+        print("--------finish--------")
         return app.response_class(status=200)
 
 
@@ -93,6 +98,36 @@ def get_line_profile():
     line_bot_api = LineBotApi(LINE_ACCESS_TOKEN)
     profile = line_bot_api.get_profile(SEND_USER_ID)
     print(profile)
+    return app.response_class(status=200)
+
+
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    # get X-Line-Signature header value
+    signature = request.headers["X-Line-Signature"]
+
+    # get request body as text
+    body = request.get_data(as_text=True)
+    app.logger.info("Request body: " + body)
+
+    # userId を取得 (1)
+    body_json = json.loads(body)
+    app.logger.info("User Id: {}".format(body_json["events"][0]["source"]["userId"]))
+    print(body_json["events"][0]["source"]["userId"])
+
+    text_message = body_json["events"][0]["source"]["userId"]
+    try:
+        line_bot_api.push_message(SEND_USER_ID, TextSendMessage(text=text_message))
+    except LineBotApiError as e:
+        # エラーが起こり送信できなかった場合
+        print(e)
+
+    # handle webhook body
+    try:
+        handler.handle(body, signature)
+    except InvalidSignatureError:
+        abort(400)
+
     return app.response_class(status=200)
 
 
