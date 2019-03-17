@@ -41,7 +41,7 @@ day_dict = {"today": "今日", "beforeday": "明日"}
 # 前日： /notif_holiday/beforeday
 @app.route("/notif_holiday/<today_or_beforeday>", methods=["GET"])
 def notif_holiday(today_or_beforeday):
-    # 日付を取得する。heroku環境ではus時刻なのでus時刻を変換して取得する
+    # 日付を取得する。
     date_str = ""
     if today_or_beforeday == "today":
         date_str = get_today_jp_str()
